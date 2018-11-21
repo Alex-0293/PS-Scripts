@@ -8,8 +8,8 @@
 $HostsList = New-Object System.Collections.ArrayList
 $Subnet    = "192.168.4."
 $CSVPath   = "C:\Users\admin1\Documents\Inventory\hosts.csv" #"D:\DATA\INVENTORY\mac.csv"
-$Start     = 4
-$End       = 4
+$Start     = 1
+$End       = 254
 # End params
 
 function Get-MacAddress {
@@ -40,23 +40,24 @@ function Get-MacAddress {
     }
     else 
     {
-        #Это локальный ip?
+        #Is it local Ip?
         $IPConf = ipconfig /all
         $Cnt = 0
         $IsMatchDevice = $False
         foreach ($item in $IPConf)
         {
-            If ($item -match ("$device "))
+            If ($item -match ("$device ") -or $item -match ("$device\("))
             {$IsMatchDevice = $true;break}
             else
             {$Cnt+=1}
         }
-        $IPConf[$cnt-3] | Where-Object {$_ -match "([0-9A-F]{2}([:-][0-9A-F]{2}){5})"} | out-null
-        if ($matches[0] -ne $device -and $IsMatchDevice -eq $true)
+        
+        $IPConf[$cnt-3] | Where-Object {$_ -match "([0-9A-F]{2}([:-][0-9A-F]{2}){5})"}
+        if ($matches[0] -ne $device -and $matches[0] -ne "$device(" -and $matches[0] -ne "$device " -and $IsMatchDevice -eq $true)
             {$Data1.Mac =$matches[0]}
         Else
             {
-                 $IPConf[$cnt-4] | Where-Object {$_ -match "([0-9A-F]{2}([:-][0-9A-F]{2}){5})"} | out-null # В 2016 другой порядок записей в Ipconfig
+                 $IPConf[$cnt-4] | Where-Object {$_ -match "([0-9A-F]{2}([:-][0-9A-F]{2}){5})"} # There is different order in 2016 Ipconfig
                  if ($matches[0] -ne $device -and $IsMatchDevice -eq $true)
                  {$Data1.Mac =$matches[0]}
                  Else
@@ -121,7 +122,7 @@ for ($Item0 = $Start; $Item0 -le $End ; $Item0++)
         }
         Catch [system.exception]
         {
-            If ($error[0] -like "*The requested name is valid, but no data of the requested type was found*") {$Data.HostName = "Нет в DNS"; $Data.HostName}
+            If ($error[0] -like "*The requested name is valid, but no data of the requested type was found*") {$Data.HostName = "Not in DNS"; $Data.HostName}
         }
       
     $HostsList += $Data
