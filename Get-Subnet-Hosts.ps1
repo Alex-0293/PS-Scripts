@@ -8,8 +8,8 @@
 $HostsList = New-Object System.Collections.ArrayList
 $Subnet    = "192.168.4."
 $CSVPath   = "C:\Users\admin1\Documents\Inventory\hosts.csv" #"D:\DATA\INVENTORY\mac.csv"
-$Start     = 1
-$End       = 5
+$Start     = 4
+$End       = 4
 # End params
 
 function Get-MacAddress {
@@ -20,7 +20,7 @@ function Get-MacAddress {
         WMI             = ""
     }
     $ping = Test-connection $device -count 1 -quiet
-    $mac = arp -a;
+    $mac = arp -a
     
     $Data1.Ip = $device
 
@@ -41,12 +41,12 @@ function Get-MacAddress {
     else 
     {
         #Это локальный ip?
-        $IPConf = ipconfig /all;
+        $IPConf = ipconfig /all
         $Cnt = 0
         $IsMatchDevice = $False
         foreach ($item in $IPConf)
         {
-            If ($item -match $device)
+            If ($item -match ("$device "))
             {$IsMatchDevice = $true;break}
             else
             {$Cnt+=1}
@@ -130,4 +130,4 @@ for ($Item0 = $Start; $Item0 -le $End ; $Item0++)
 
 $HostsList | Where-Object {$_.HostName -ne "" -or ($_.Mac -ne "" -and $_.mac -ne "Not Found")} | Select-Object Ip,HostName,Domen,Mac,WMI | Format-Table  -AutoSize
 #//TODO(2) <Compare CSV and add new data> 2018-10-03T12:46 <1>
-$HostsList | Export-Csv -Encoding UTF8 -NoTypeInformation -Path $CSVPath
+$HostsList |Select-Object ip,HostName,Domen,Mac,WMI   | Export-Csv -Encoding UTF8 -NoTypeInformation -Path $CSVPath
