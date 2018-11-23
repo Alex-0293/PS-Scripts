@@ -6,8 +6,10 @@
 
 # Params
     $Subnet = "192.168.6."
-    $CSVPath      = "D:\DATA\INVENTORY\inventory.csv"        #Current inventary
-    $CSVTotalPath = "D:\DATA\INVENTORY\Total-inventory.csv"  #Total inventory 
+    $DataPath     = "D:\DATA\INVENTORY\"
+    $CSVPath      = "$DataPathinventory.csv"        #Current inventary
+    $CSVTotalPath = "$DataPathTotal-inventory.csv"  #Total   inventory 
+    $CSVDiffPath  = "$DataPathDiff-inventory-"      #Diff    inventory 
     $Group   = "AB"
     $Start   = 1
     $End     = 254
@@ -160,23 +162,27 @@ Function InventoryPC($HostForInventory,$Cred,$IsLocal)
     $Data | format-table -autosize
 }
 
-Function Add-InventoryResultTotalInventory ($Inventory,$TotalInventory)
+Function Add-InventoryResultTotalInventory ($Inventory,$TotalInventory,$DiffInventory)
 {
-    $Inv1 = import-csv -Path $Inventory -Encoding UTF8
+    $DiffInv  = New-Object System.Collections.ArrayList
+    $Inv = import-csv -Path $Inventory -Encoding UTF8
     
     $isfile = Test-Path $TotalInventory
     If($isfile -eq $true)
     {
-        $Inv2 = import-csv -Path $TotalInventory -Encoding UTF8
-        $Res = Compare-Object $Inv1 $Inv2 -Property "MAC"  -PassThru |  Where-Object{$_.SideIndicator -eq '<='} 
+        $Cdate = (Get-Date) -replace(":","-") -replace("/","-")
+
+        $TotalInv = import-csv -Path $TotalInventory -Encoding UTF8
+        $Res = Compare-Object $Inv $TotalInv -Property "MAC"  -PassThru |  Where-Object{$_.SideIndicator -eq '<='} 
         Foreach($item in $res)
         {
-            $Inv2 +=$item
+            $TotalInv+=$item
+            $DiffInv +=$item
             "Inserted to the total inventory"
             $item | format-table -AutoSize
         }
-        $Inv2 | select Group,Title,Model,Serial,UserName,MAC,Url,Monitor,MonitorSerial | Export-Csv -Encoding UTF8 -Path $TotalInventory -NoTypeInformation
-   
+        $TotalInv | select Group,Title,Model,Serial,UserName,MAC,Url,Monitor,MonitorSerial | Export-Csv -Encoding UTF8 -Path $TotalInventory -NoTypeInformation
+        $DiffInv  | select Group,Title,Model,Serial,UserName,MAC,Url,Monitor,MonitorSerial | Export-Csv -Encoding UTF8 -Path "$DiffInventory$Cdate.csv" -NoTypeInformation
     }
     Else
     {
@@ -246,4 +252,4 @@ $global:Inventory|Where-Object{$_.Model -ne "Virtual Machine"} | select @{n="Gro
                @{n="MonitorSerial"; e={$_.MonitorSerial}}  | Export-Csv -Encoding UTF8 -Path $CSVPath -NoTypeInformation
 
 
-Add-InventoryResultTotalInventory $CSVPath $CSVTotalPath
+Add-InventoryResultTotalInventory $CSVPath $CSVTotalPath $CSVDiffPath
