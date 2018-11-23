@@ -1,15 +1,16 @@
 ﻿# Name:       Subnet computers inventory
 # Ver:           1.0
-# Date:         17.11.2018
+# Date:         23.11.2018
 # Platform:  Windows 7 X64
 # PSVer:       5.1.14409.1018
 
 # Params
-$Subnet = "192.168.4."
-$CSVPath = "C:\Users\admin1\Documents\Inventory\inventory.csv" #"D:\DATA\INVENTORY\inventory.csv"
-$Group   = "ADVALORE"
-$Start   = 1
-$End     = 254
+    $Subnet = "192.168.6."
+    $CSVPath      = "D:\DATA\INVENTORY\inventory.csv"        #Current inventary
+    $CSVTotalPath = "D:\DATA\INVENTORY\Total-inventory.csv"  #Total inventory 
+    $Group   = "AB"
+    $Start   = 1
+    $End     = 254
 # End params
 
 Function GetIpBySubnet($NetAdapter)
@@ -125,7 +126,7 @@ Function InventoryPC($HostForInventory,$Cred,$IsLocal)
         " -Mother board" 
         $MBInfo = Get-WmiObject -computername $HostForInventory Win32_BaseBoard  | select-object Manufacturer, Product, SerialNumber #|# ft @{label="Серийный номер"; Expression={$_.SerialNumber}} -auto -wrap  
 
-        " -Nic 
+        " -Nic "
         $NetAdapter = Get-WmiObject -computername $HostForInventory Win32_NetworkAdapter -Filter "NetConnectionStatus>0"   | 
         Select-Object name, AdapterType, MACAddress,NetConnectionID,  @{n="AdapterIPs";e={$_.GetRelated("Win32_NetworkAdapterConfiguration")| Select-Object -expand IPAddress}}, 
         @{n="DefaultIPGateway";e={$_.GetRelated("Win32_NetworkAdapterConfiguration")| Select-Object -expand DefaultIPGateway}},   
@@ -158,6 +159,31 @@ Function InventoryPC($HostForInventory,$Cred,$IsLocal)
     $global:Inventory += $Data
     $Data | format-table -autosize
 }
+
+Function Add-InventoryResultTotalInventory ($Inventory,$TotalInventory)
+{
+    $Inv1 = import-csv -Path $Inventory -Encoding UTF8
+    
+    $isfile = Test-Path $TotalInventory
+    If($isfile -eq $true)
+    {
+        $Inv2 = import-csv -Path $TotalInventory -Encoding UTF8
+        $Res = Compare-Object $Inv1 $Inv2 -Property "MAC"  -PassThru |  Where-Object{$_.SideIndicator -eq '<='} 
+        Foreach($item in $res)
+        {
+            $Inv2 +=$item
+            "Inserted to the total inventory"
+            $item | format-table -AutoSize
+        }
+        $Inv2 | select Group,Title,Model,Serial,UserName,MAC,Url,Monitor,MonitorSerial | Export-Csv -Encoding UTF8 -Path $TotalInventory -NoTypeInformation
+   
+    }
+    Else
+    {
+        copy $Inventory $TotalInventory
+    }
+}
+
 
 Clear-Host
 
@@ -220,3 +246,4 @@ $global:Inventory|Where-Object{$_.Model -ne "Virtual Machine"} | select @{n="Gro
                @{n="MonitorSerial"; e={$_.MonitorSerial}}  | Export-Csv -Encoding UTF8 -Path $CSVPath -NoTypeInformation
 
 
+Add-InventoryResultTotalInventory $CSVPath $CSVTotalPath
