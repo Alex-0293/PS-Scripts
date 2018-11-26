@@ -15,10 +15,13 @@
     $Group                          = "RRB"
     $Start                          = 5
     $End                            = 5
+    $DialUpStart                    = 0
+    $DialupEnd                      = 0
     $global:AskForCredentialonError = $True
     $ScanOnlyIpWithErrors           = $False
     $UnpingableIpList               = "192.168.5.2","192.168.5.5" #Try to inventory if not pinging
 # End params
+
 
 Function GetIpBySubnet($NetAdapter, $HostForInventory)
 {
@@ -85,7 +88,12 @@ function FindAdapterMatchIp ($HostForInventory, $NetAdapter)
         }
         $cntr += 1
     }
-    $cntr
+    if($Global:isDialUp=$false)
+    {
+        $cntr
+    }
+    Else
+    {0}
 }
 
 Function InventoryPC($HostForInventory,$Cred,$IsLocal)
@@ -209,7 +217,7 @@ Function Add-InventoryResultTotalInventory ($Inventory,$TotalInventory,$DiffInve
     $Inv = import-csv -Path $Inventory -Encoding UTF8
     
     $isfile = Test-Path $TotalInventory
-    If($isfile -eq $true)
+    If($isfile -eq $true -and $Inv.count -gt 0)
     {
         $Cdate = (Get-Date) -replace(":","-") -replace("/","-")
 
@@ -232,7 +240,10 @@ Function Add-InventoryResultTotalInventory ($Inventory,$TotalInventory,$DiffInve
     }
     Else
     {
-        Copy-Item $Inventory $TotalInventory
+        If($Inv.count -gt 0)
+        {
+            Copy-Item $Inventory $TotalInventory
+        }
     }
 }
 Function ProcessIp ($Ip)
@@ -286,7 +297,7 @@ Function ProcessIp ($Ip)
             }
             else 
             {
-                $Testonnection = Get-WmiObject -computername $Ip Win32_OperatingSystem -Credential $Cred -ErrorAction SilentlyContinue
+                $Testonnection = Get-WmiObject -computername $Ip Win32_OperatingSystem
                 if ($Testonnection -ne $null) 
                     {InventoryPC $Ip $Cred $islocal} 
                 Else {Write-Host "Cant connect to $Ip" -ForegroundColor Red}   
@@ -306,11 +317,18 @@ $global:Inventory  = New-Object System.Collections.ArrayList
 $global:HostsWithError    = New-Object System.Collections.ArrayList
 $Cred = Get-Credential
 
+
 if ( $ScanOnlyIpWithErrors -eq $false)
 {
     for ($Item0 = $Start; $Item0 -le $End; $Item0++)
     {
         $CurrentHost  = $Subnet + $Item0
+
+        if(($Item0 -ge $DialUpStart) -and ($Item0 -le $DialUpEnd))
+        {$Global:isDialUp = $True} 
+        else
+        {$Global:isDialUp = $False} 
+        
         ProcessIp $CurrentHost 
     }
 }
@@ -321,6 +339,11 @@ else
         $errorsData = Import-Csv -Path $CSVErrorsPath -Encoding UTF8
         foreach($item in $errorsData)
         {
+            if(($Item.Ip -ge ($Subnet+$DialUpStart)) -and ($Item.Ip -le ($Subnet +$DialUpEnd)))
+            {$Global:isDialUp = $True} 
+            else
+            {$Global:isDialUp = $False} 
+            
             ProcessIp $Item.Ip 
         }
     }
