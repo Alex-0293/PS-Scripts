@@ -13,10 +13,11 @@
     $CSVDiffPath                    = $DataPath + "Diff-inventory-"      #Diff    inventory
     $CSVErrorsPath                  = $DataPath + "Errors-inventory"    #Errors when scanning hosts  
     $Group                          = "RRB"
-    $Start                          = 1
-    $End                            = 254
-    $global:AskForCredentialonError = $False
+    $Start                          = 5
+    $End                            = 5
+    $global:AskForCredentialonError = $True
     $ScanOnlyIpWithErrors           = $False
+    $UnpingableIpList               = "192.168.5.2","192.168.5.5" #Try to inventory if not pinging
 # End params
 
 Function GetIpBySubnet($NetAdapter, $HostForInventory)
@@ -223,8 +224,11 @@ Function Add-InventoryResultTotalInventory ($Inventory,$TotalInventory,$DiffInve
             "Inserted to the total inventory"
             $item | format-table -AutoSize
         }
-        $TotalInv | Select-Object Group,Title,Model,Serial,UserName,MAC,Url,Monitor,MonitorSerial | Export-Csv -Encoding UTF8 -Path $TotalInventory -NoTypeInformation
-        $DiffInv  | Select-Object Group,Title,Model,Serial,UserName,MAC,Url,Monitor,MonitorSerial | Export-Csv -Encoding UTF8 -Path "$DiffInventory$Cdate.csv" -NoTypeInformation
+        if ($Res.count -ge 1) 
+        {
+            $TotalInv | Select-Object Group,Title,Model,Serial,UserName,MAC,Url,Monitor,MonitorSerial | Export-Csv -Encoding UTF8 -Path $TotalInventory -NoTypeInformation
+            $DiffInv  | Select-Object Group,Title,Model,Serial,UserName,MAC,Url,Monitor,MonitorSerial | Export-Csv -Encoding UTF8 -Path "$DiffInventory$Cdate.csv" -NoTypeInformation
+        }
     }
     Else
     {
@@ -233,7 +237,7 @@ Function Add-InventoryResultTotalInventory ($Inventory,$TotalInventory,$DiffInve
 }
 Function ProcessIp ($Ip)
 {
-    if ((Test-connection $Ip -count 1 -quiet) -eq "True")
+    if ((Test-connection $Ip -count 1 -quiet) -eq "True" -or ($UnpingableIpList -contains $ip)) 
     {
         #Determine whether it local host or not, if local get data without credentials
         $islocal = $false
@@ -359,3 +363,5 @@ $global:Inventory | Where-Object{$_.Model -ne "Virtual Machine"} | select @{n="G
                @{n="Serial"; e={$_.SerialNum}},@{n="UserName"; e={$_.UserName}},@{n="MAC"; e={$_.AdapterMAC}},
                @{n="Url"; e={$_.AdapterIP}},@{n="Monitor"; e={$_.Monitor}},
                @{n="MonitorSerial"; e={$_.MonitorSerial}}  | Export-Csv -Encoding UTF8 -Path $CSVPath -NoTypeInformation
+
+Add-InventoryResultTotalInventory $CSVPath $CSVTotalPath $CSVDiffPath
