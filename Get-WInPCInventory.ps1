@@ -193,6 +193,35 @@ Else
 }
 
 
+Function Add-InventoryResultTotalInventory ($Inventory,$TotalInventory,$DiffInventory)
+{
+    $DiffInv  = New-Object System.Collections.ArrayList
+    $Inv = import-csv -Path $Inventory -Encoding UTF8
+    
+    $isfile = Test-Path $TotalInventory
+    If($isfile -eq $true)
+    {
+        $Cdate = (Get-Date) -replace(":","-") -replace("/","-")
+
+        $TotalInv = import-csv -Path $TotalInventory -Encoding UTF8
+        $Res = Compare-Object $Inv $TotalInv -Property "MAC"  -PassThru |  Where-Object{$_.SideIndicator -eq '<='} 
+        Foreach($item in $res)
+        {
+            $TotalInv+=$item
+            $DiffInv +=$item
+            "Inserted to the total inventory"
+            $item | format-table -AutoSize
+        }
+        $TotalInv | select Group,Title,Model,Serial,UserName,MAC,Url,Monitor,MonitorSerial | Export-Csv -Encoding UTF8 -Path $TotalInventory -NoTypeInformation
+        $DiffInv  | select Group,Title,Model,Serial,UserName,MAC,Url,Monitor,MonitorSerial | Export-Csv -Encoding UTF8 -Path "$DiffInventory$Cdate.csv" -NoTypeInformation
+    }
+    Else
+    {
+        copy $Inventory $TotalInventory
+    }
+}
+
+
 Clear-Host
 
 if ($psculture -eq "ru-RU")
