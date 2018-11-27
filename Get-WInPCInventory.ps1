@@ -13,11 +13,11 @@
     $CSVDiffPath                    = $DataPath + "Diff-inventory-"      #Diff    inventory
     $CSVErrorsPath                  = $DataPath + "Errors-inventory"    #Errors when scanning hosts  
     $Group                          = "RRB"
-    $Start                          = 5
-    $End                            = 5
+    $Start                          = 68
+    $End                            = 68
     $DialUpStart                    = 0
     $DialupEnd                      = 0
-    $global:AskForCredentialonError = $True
+    $global:AskForCredentialonError = $False
     $ScanOnlyIpWithErrors           = $False
     $UnpingableIpList               = "192.168.5.2","192.168.5.5" #Try to inventory if not pinging
 # End params
@@ -96,7 +96,7 @@ function FindAdapterMatchIp ($HostForInventory, $NetAdapter)
     {0}
 }
 
-Function InventoryPC($HostForInventory,$Cred,$IsLocal)
+Function InventoryPC($HostForInventory, $Cred, $IsLocal)
 { 
 
 Write-Host  $HostForInventory -ForegroundColor Green
@@ -211,13 +211,13 @@ $global:Inventory += $Data
 $Data | format-table -autosize
 }
 
-Function Add-InventoryResultTotalInventory ($Inventory,$TotalInventory,$DiffInventory)
+Function Add-InventoryResultTotalInventory ($Inventory, $TotalInventory, $DiffInventory)
 {
     $DiffInv  = New-Object System.Collections.ArrayList
     $Inv = import-csv -Path $Inventory -Encoding UTF8
     
     $isfile = Test-Path $TotalInventory
-    If($isfile -eq $true -and $Inv.count -gt 0)
+    If(($isfile -eq $true) -and ($Inv.count -gt 0))
     {
         $Cdate = (Get-Date) -replace(":","-") -replace("/","-")
 
@@ -225,8 +225,8 @@ Function Add-InventoryResultTotalInventory ($Inventory,$TotalInventory,$DiffInve
         $Res = Compare-Object $Inv $TotalInv -Property "MAC"  -PassThru |  Where-Object{$_.SideIndicator -eq '<='} 
         Foreach($item in $res)
         {
-            $TotalInv+=$item
-            $DiffInv +=$item
+            $TotalInv += $item
+            $DiffInv  += $item
             ""
             ""
             "Inserted to the total inventory"
@@ -240,11 +240,43 @@ Function Add-InventoryResultTotalInventory ($Inventory,$TotalInventory,$DiffInve
     }
     Else
     {
+        
         If($Inv.count -gt 0)
         {
             Copy-Item $Inventory $TotalInventory
         }
+
     }
+}
+
+Function Add-HostErrors ($CSVErrorsPath)
+{
+    if ($global:HostsWithError.count -ge 1)
+    {   "Host with errors"
+        $global:HostsWithError
+        if((test-path $CSVErrorsPath) -eq $False)
+        {
+            $global:HostsWithError | Export-Csv -Encoding UTF8 -Path $CSVErrorsPath -NoTypeInformation
+        }
+        else 
+        {
+            $errorsData = Import-Csv -Path $CSVErrorsPath -Encoding UTF8
+            $Res = Compare-Object $errorsData $global:HostsWithError -Property "Ip" -PassThru |  Where-Object{$_.SideIndicator -eq '=>'} 
+            Foreach($item in $res)
+            {
+                $errorsData +=$item
+                ""
+                ""
+                "Inserted to the errors file"
+                $item | format-table -AutoSize
+            }
+            if($res.count -ge 1)
+            {
+                $errorsData | Export-Csv -Encoding UTF8 -Path $CSVErrorsPath -NoTypeInformation
+            }
+        }
+    }
+    
 }
 Function ProcessIp ($Ip)
 {
@@ -352,37 +384,12 @@ else
         Write-Host "Error, file $CSVErrorsPath not found!" -ForegroundColor Red
     }
 }
-$global:Inventory | select HostName,Model,SerialNum,UserName,NetConnectionID,AdapterMAC,AdapterIP,Monitor,MonitorSerial | ft -AutoSize
+$global:Inventory | Select-Object HostName,Model,SerialNum,UserName,NetConnectionID,AdapterMAC,AdapterIP,Monitor,MonitorSerial | ft -AutoSize
 
-if ($global:HostsWithError.count -ge 1)
-{   "Host with errors"
-    $global:HostsWithError
-    if((test-path $CSVErrorsPath) -eq $False)
-    {
-        $global:HostsWithError | Export-Csv -Encoding UTF8 -Path $CSVErrorsPath -NoTypeInformation
-    }
-    else 
-    {
-        $errorsData = Import-Csv -Path $CSVErrorsPath -Encoding UTF8
-        $Res = Compare-Object $errorsData $global:HostsWithError -Property "Ip" -PassThru |  Where-Object{$_.SideIndicator -eq '=>'} 
-        Foreach($item in $res)
-        {
-            $errorsData +=$item
-            ""
-            ""
-            "Inserted to the errors file"
-            $item | format-table -AutoSize
-        }
-        if($res.count -ge 1)
-        {
-            $errorsData | Export-Csv -Encoding UTF8 -Path $CSVErrorsPath -NoTypeInformation
-        }
-    }
-}
-
+Add-HostErrors $CSVErrorsPath
 
 #save CSV in format for passkeeper
-$global:Inventory | Where-Object{$_.Model -ne "Virtual Machine"} | select @{n="Group"; e={$Group}},@{n="Title"; e={$_.HostName}},@{n="Model"; e={$_.Model}},
+$global:Inventory | Where-Object{$_.Model -ne "Virtual Machine"} | Select-Object @{n="Group"; e={$Group}},@{n="Title"; e={$_.HostName}},@{n="Model"; e={$_.Model}},
                @{n="Serial"; e={$_.SerialNum}},@{n="UserName"; e={$_.UserName}},@{n="MAC"; e={$_.AdapterMAC}},
                @{n="Url"; e={$_.AdapterIP}},@{n="Monitor"; e={$_.Monitor}},
                @{n="MonitorSerial"; e={$_.MonitorSerial}}  | Export-Csv -Encoding UTF8 -Path $CSVPath -NoTypeInformation
