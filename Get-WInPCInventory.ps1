@@ -1,25 +1,25 @@
-﻿# End params
+# End params
 # Name:       Subnet computers inventory
 # Ver:           1.0
-# Date:         23.11.2018
+# Date:         29.03.2019
 # Platform:  Windows 7 X64
 # PSVer:       5.1.14409.1018
 
 # Params
-    $Subnet                         = "192.168.5."
-    $DataPath                       = "C:\Users\admin1\Documents\Inventory\"
+    $Subnet                         = "192.168.6."
+    $DataPath                       = "C:\Users\User\Documents\INVENTORY\"
     $CSVPath                        = $DataPath + "inventory.csv"        #Current inventary
     $CSVTotalPath                   = $DataPath + "Total-inventory.csv"  #Total   inventory 
     $CSVDiffPath                    = $DataPath + "Diff-inventory-"      #Diff    inventory
     $CSVErrorsPath                  = $DataPath + "Errors-inventory"    #Errors when scanning hosts  
-    $Group                          = "RRB"
-    $Start                          = 68
-    $End                            = 68
-    $DialUpStart                    = 0
-    $DialupEnd                      = 0
+    $Group                          = "AB"
+    $Start                          = 1    #First ip
+    $End                            = 254  #Last ip
+    $DialUpStart                    = 100
+    $DialupEnd                      = 160
     $global:AskForCredentialonError = $False
     $ScanOnlyIpWithErrors           = $False
-    $UnpingableIpList               = "192.168.5.2","192.168.5.5" #Try to inventory if not pinging
+    $UnpingableIpList               = ""#192.168.5.2","192.168.5.5" #Try to inventory if not pinging
 # End params
 
 
@@ -183,10 +183,30 @@ else
 
     $Ip = GetIpBySubnet $NetAdapter $HostForInventory
 
-    " -Display"
-    $MonitorInfo = Get-WmiObject -computername $HostForInventory WmiMonitorID -Namespace root\wmi  |
-        Select -last 1 @{n="Model"; e={[System.Text.Encoding]::ASCII.GetString($_.UserFriendlyName -ne 00)}},
-                        @{n="SerialNumberID";e={[System.Text.Encoding]::ASCII.GetString($_.SerialNumberID -ne 00)}}
+    try
+    {
+        " -Display"
+        $MonitorInfo = Get-WmiObject -computername $HostForInventory WmiMonitorID -Namespace root\wmi  -Credential $Cred -ErrorAction SilentlyContinue|
+            Select-Object -last 1 @{n="Model"; e={[System.Text.Encoding]::ASCII.GetString($_.UserFriendlyName -ne 00)}},
+                            @{n="SerialNumberID";e={[System.Text.Encoding]::ASCII.GetString($_.SerialNumberID -ne 00)}}
+        }
+    Catch 
+    {
+        $MonitorInfo = New-Object PSObject -property @{
+            Model             = "n/a"
+            SerialNumberID    = "n/a"
+        }
+    }
+    finally
+    {
+      if ($MonitorInfo.count -eq 0) 
+      {
+        $MonitorInfo = New-Object PSObject -property @{
+            Model             = "n/a"
+            SerialNumberID    = "n/a"
+        }
+      }
+    }
 
     $PCModel  = Get-WmiObject -computername $HostForInventory Win32_ComputerSystem | Select -Expand Model
     $UserName = Get-WmiObject -computername $HostForInventory Win32_ComputerSystem | Select-Object -ExpandProperty UserName
@@ -217,7 +237,7 @@ Function Add-InventoryResultTotalInventory ($Inventory, $TotalInventory, $DiffIn
     $Inv = import-csv -Path $Inventory -Encoding UTF8
     
     $isfile = Test-Path $TotalInventory
-    If(($isfile -eq $true) -and ($Inv.count -gt 0))
+    If(($isfile -eq $true) -and (($Inv.count -gt 0) -or ($null -eq $inv.count)))
     {
         $Cdate = (Get-Date) -replace(":","-") -replace("/","-")
 
@@ -231,6 +251,8 @@ Function Add-InventoryResultTotalInventory ($Inventory, $TotalInventory, $DiffIn
             ""
             "Inserted to the total inventory"
             $item | format-table -AutoSize
+            $TotalInv | Select-Object Group,Title,Model,Serial,UserName,MAC,Url,Monitor,MonitorSerial | Export-Csv -Encoding UTF8 -Path $TotalInventory -NoTypeInformation
+            $DiffInv  | Select-Object Group,Title,Model,Serial,UserName,MAC,Url,Monitor,MonitorSerial | Export-Csv -Encoding UTF8 -Path "$DiffInventory$Cdate.csv" -NoTypeInformation
         }
         if ($Res.count -ge 1) 
         {
@@ -241,7 +263,7 @@ Function Add-InventoryResultTotalInventory ($Inventory, $TotalInventory, $DiffIn
     Else
     {
         
-        If($Inv.count -gt 0)
+        If(($Inv.count -gt 0) -or ($null -eq $inv.count))
         {
             Copy-Item $Inventory $TotalInventory
         }
